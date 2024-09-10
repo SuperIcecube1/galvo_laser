@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Song Analysis</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-streaming"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+</head>
+<body>
+    <h1>Real-Time Song Analysis</h1>
+    <div id="song-status">Loading...</div>
+    <div>Current Mode: <span id="current-mode">0</span></div>
+    <canvas id="volumeChart" width="400" height="200"></canvas>
+
+    <h2>Color Control</h2>
+    <div>
+        <input type="color" id="colorPicker1" value="#ffffff">
+        <input type="color" id="colorPicker2" value="#ffffff">
+        <input type="color" id="colorPicker3" value="#ffffff">
+        <input type="color" id="colorPicker4" value="#ffffff">
+    </div>
+    <br/>
+    <button onclick="setColor()">Set Colors</button>
+    <button onclick="setFullSpectrum()">Full Spectrum Mode</button>
+    <button onclick="setRaveMode()">Rave Mode</button>
+    <button onclick="setHalloweenMode()">Halloween Mode</button>
+    <button onclick="setBoilerRoomMode()">Boiler Room Mode</button>
+    <br/><br/>
+    <button onclick="matchColors([0, 1])">Match 1-2</button>
+    <button onclick="matchColors([2, 3])">Match 3-4</button>
+    <button onclick="matchColors([0, 2])">Match 1-3</button>
+    <button onclick="matchColors([1, 3])">Match 2-4</button>
+    <br/>
+
+    <h2>Mode Control</h2>
+    <div id="selected-mode">No mode selected</div>
+    <button onclick="sendMode(1)">Club</button>
+    <button onclick="sendMode(2)">Rave</button>
+    <button onclick="sendMode(3)">Disco</button>
+    <button onclick="sendMode(4)">Effect 1</button>
+    <button onclick="sendMode(5)">Effect 2</button>
+    <button onclick="sendMode(6)">Effect 3</button>
+    <button onclick="sendMode(7)">Effect 4</button>
+    <button onclick="sendMode(8)">Effect 5</button>
+    <button onclick="sendMode(9)">Effect 6</button>
+    <button onclick="sendMode(10)">Effect 7</button>
+    <button onclick="sendMode(11)">Effect 8</button>
+    <button onclick="sendMode(12)">Effect 9</button>
+    <button onclick="sendMode(13)">Effect 10</button>
+    <br/>
+
+    <h2>Current Strip Colors</h2>
+    <div>Strip 1: <span id="strip-color1">#FFFFFF</span></div>
+    <div>Strip 2: <span id="strip-color2">#FFFFFF</span></div>
+    <div>Strip 3: <span id="strip-color3">#FFFFFF</span></div>
+    <div>Strip 4: <span id="strip-color4">#FFFFFF</span></div>
+
+    <script>
+        const ctx = document.getElementById('volumeChart').getContext('2d');
+        const volumeChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [
+                    {
+                        label: 'Volume Level',
+                        data: [],
+                        borderColor: 'rgb(54, 162, 235)',
+                        fill: false,
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                scales: {
+                    x: {
+                        type: 'realtime',
+                        realtime: {
+                            duration: 5000,
+                            refresh: 100,
+                            delay: 0,
+                            onRefresh: function(chart) {
+                                fetch('/status')
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        chart.data.datasets[0].data.push({
+                                            x: Date.now(),
+                                            y: data.volume_level
+                                        });
+                                        if (chart.data.datasets[0].data.length > 500) {
+                                            chart.data.datasets[0].data.shift();
+                                        }
+                                        document.getElementById('song-status').textContent = `Spotify BPM: ${data.spotify_bpm.toFixed(2)}, Energy Level: ${data.energy_level === -1 ? "No Sound" : data.energy_level}, Beat Drop: ${data.is_beat_drop ? "Yes" : "No"}`;
+                                        document.getElementById('current-mode').textContent = data.current_mode;
+                                        document.getElementById('strip-color1').textContent = data.colors[0];
+                                        document.getElementById('strip-color2').textContent = data.colors[1];
+                                        document.getElementById('strip-color3').textContent = data.colors[2];
+                                        document.getElementById('strip-color4').textContent = data.colors[3];
+                                    })
+                                    .catch(error => console.error('Error fetching song status:', error));
+                            }
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        max: 1
+                    }
+                }
+            }
+        });
+
+        function setColor() {
+            const colors = [
+                document.getElementById('colorPicker1').value,
+                document.getElementById('colorPicker2').value,
+                document.getElementById('colorPicker3').value,
+                document.getElementById('colorPicker4').value
+            ];
+            fetch('/set-color', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode: 'static', colors: colors }),
+            });
+        }
+
+        function matchColors(pairs) {
+            const colors = [
+                document.getElementById('colorPicker1').value,
+                document.getElementById('colorPicker2').value,
+                document.getElementById('colorPicker3').value,
+                document.getElementById('colorPicker4').value
+            ];
+            for (let i = 0; i < pairs.length; i += 2) {
+                const colorToMatch = colors[pairs[i]];
+                colors[pairs[i + 1]] = colorToMatch;
+            }
+            fetch('/set-color', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode: 'static', colors: colors }),
+            });
+            document.getElementById('colorPicker1').value = colors[0];
+            document.getElementById('colorPicker2').value = colors[1];
+            document.getElementById('colorPicker3').value = colors[2];
+            document.getElementById('colorPicker4').value = colors[3];
+        }
+
+        function setFullSpectrum() {
+            fetch('/set-color', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode: 'full_spectrum' }),
+            });
+        }
+
+        function setRaveMode() {
+            fetch('/set-color', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode: 'rave' }),
+            });
+        }
+
+        function setHalloweenMode() {
+            fetch('/set-color', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode: 'halloween' }),
+            });
+        }
+
+        function setBoilerRoomMode() {
+            fetch('/set-color', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode: 'boiler_room' }),
+            });
+        }
+
+        function sendMode(mode) {
+            fetch('/set-mode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ mode: mode }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Mode set:', data);
+                document.getElementById('selected-mode').textContent = `Selected Mode: ${mode}`;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+
+        setInterval(function() {
+            fetch('/status')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('song-status').textContent = `Spotify BPM: ${data.spotify_bpm.toFixed(2)}, Energy Level: ${data.energy_level === -1 ? "No Sound" : data.energy_level}, Beat Drop: ${data.is_beat_drop ? "Yes" : "No"}`;
+                    document.getElementById('strip-color1').textContent = data.colors[0];
+                    document.getElementById('strip-color2').textContent = data.colors[1];
+                    document.getElementById('strip-color3').textContent = data.colors[2];
+                    document.getElementById('strip-color4').textContent = data.colors[3];
+                })
+                .catch(error => console.error('Error fetching song status:', error));
+        }, 500);
+    </script>
+</body>
+</html>
